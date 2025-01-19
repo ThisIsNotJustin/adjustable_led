@@ -1,9 +1,15 @@
 #include <pigpio.h>
 #include <stdio.h>
+#include <signal.h>
 
-#define POT_PIN 26
 #define LED_PIN 16
 #define ADC_ADDR 0x4b
+
+volatile int running = 1;
+
+void handle_sigint(int sig) {
+    running = 0;
+}
 
 int readADC(int handle, int channel) {
     char controlByte = (channel << 4) | 0x80;
@@ -23,6 +29,10 @@ int readADC(int handle, int channel) {
 }
 
 int main() {
+    signal(SIGINT, handle_sigint);
+
+    gpioCfgSetInternals(gpioCfgGetInternals() | PI_CFG_NOSIGHANDLER);
+
     if (gpioInitialise() < 0) {
         fprintf(stderr, "Failed to initialize piGPIO\n");
         return 1;
@@ -36,7 +46,7 @@ int main() {
 
     gpioSetMode(LED_PIN, PI_OUTPUT);
 
-    while (1) {
+    while (running) {
         int values = readADC(i2cHandle, 0);
         if (values < 0) {
             fprintf(stderr, "Error reading ADC\n");
@@ -50,7 +60,7 @@ int main() {
     printf("Terminating program\n");
     gpioPWM(LED_PIN, 0);
     i2cClose(i2cHandle);
-
     gpioTerminate();
+
     return 0;
 }
